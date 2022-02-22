@@ -1,0 +1,399 @@
+import pandas as pd
+import numpy as np
+import MyTools
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+from voxel_data_generator import VoxelDataGenerator
+
+from keras.regularizers import l2
+from matplotlib import pyplot
+from tensorflow.keras.applications.resnet50 import decode_predictions
+import os
+import scipy.ndimage as ndimage
+from sklearn.preprocessing import normalize
+import cv2
+from sys import getsizeof
+import seaborn as sns
+gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+
+config = tf.compat.v1.ConfigProto(gpu_options=gpu_options)
+
+session = tf.compat.v1.Session(config=config)
+
+SIZE = 512
+NUM_IMAGES = 512
+data_directory = "C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/ENS_CT_KERAS/"
+all_data_dic = (pd.read_csv("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/keras/ENS107.csv")).to_dict()
+all_data=pd.read_csv("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/keras/ENS107.csv")
+file_path="data_256"
+classifying_type="regression"
+regression_goal="SNOT25Q"
+checkpoint="SNOT25Q_107_256_reg_classification_checkpoint_1201_3000_bn.h5"
+model_name='SNOT25Q_107_256_reg_modelsmall_1201_3000_bn.h5'
+excel_name="1201_reg3000_SNOT25Q.xlsx"
+batch_size=2
+seed = 8
+epochs = 3000
+
+
+type_kinds=all_data[classifying_type].value_counts().sort_index(ascending=True)
+label_dataset,label_id_list=MyTools.get_data_list(all_data,file_path=file_path,label=classifying_type,num_label=len(type_kinds))
+data=MyTools.load_img3d_to_list(label_dataset,label_kind=0)#輸出數值
+
+
+# getsizeof(data_0)
+data=data.astype(np.uint8)#迴歸
+data_list = [[] for _ in range(len(data))]
+for i in range(len(data)):
+    datai=data[i][75:140]
+    data_list[i].append(datai)
+data=MyTools.convert_to_array(data_list)
+
+
+data_0=data_0.astype(np.uint8)
+data_1=data_1.astype(np.uint8)
+
+data_0_list = [[] for _ in range(len(data_0))]
+for i in range(len(data_0)):
+    data=data_0[i][75:140]
+    data_0_list[i].append(data)
+data_1_list = [[] for _ in range(len(data_1))]
+for i in range(len(data_1)):
+    data=data_1[i][75:140]
+    data_1_list[i].append(data)
+
+data_0=MyTools.convert_to_array(data_0_list)
+data_1=MyTools.convert_to_array(data_1_list)
+
+
+#做資料大小調整(單片大小、序列大小)
+'''
+data_0=MyTools.load_img3d_to_list(label_dataset,label_kind=0)
+data_1=MyTools.load_img3d_to_list(label_dataset,label_kind=1)
+data_2=MyTools.load_img3d_to_list(label_dataset,label_kind=2)
+data_3=MyTools.load_img3d_to_list(label_dataset,label_kind=3)
+data_2=data_2.astype(np.uint8)
+data_3=data_3.astype(np.uint8)
+data_2_list = [[] for _ in range(len(data_2))]
+for i in range(len(data_2)):
+    data=data_2[i][75:140]
+    data_2_list[i].append(data)
+data_3_list = [[] for _ in range(len(data_3))]
+for i in range(len(data_3)):
+    data=data_3[i][75:140]
+    data_3_list[i].append(data)
+data_2=MyTools.convert_to_array(data_2_list)
+data_3=MyTools.convert_to_array(data_3_list)
+
+
+
+
+
+data_0_1=data_0.astype(np.float16)
+data_1_1=data_1.astype(np.float16)
+for i in range(len(data_0_1)):
+    for j in range(256):
+        data_0_1[i][j]=data_0_1[i][j]/255
+for i in range(len(data_1_1)):
+    for j in range(256):
+        data_1_1[i][j]=data_1_1[i][j]/255
+
+data_0_list = [[] for _ in range(len(data_0))]
+data_1_list = [[] for _ in range(len(data_1))]
+for i in range(len(data_0)):
+    data = ndimage.zoom(data_0[i], (0.5, 0.5, 0.5))
+    data_0_list[i].append(data)
+#
+# for i in range(len(data_0)):
+#     for j in range(256):
+#         data_0[i][j]=normalize(data_0[i][j])
+# #
+for i in range(len(data_1)):
+    data = ndimage.zoom(data_1[i], (0.5, 0.5, 0.5))
+    data_1_list[i].append(data)
+
+# for i in range(len(data_1)):
+#     for j in range(256):
+#         data_1[i][j]=normalize(data_1[i][j])
+#
+for i in range(len(data_0_list)):
+    for j in range(128):
+        cv2.imwrite("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/ENS_CT_KERAS/data_128/"+f"{label_id_list[0][i]}"+"/"+f"{j}"+".png",data_0_list[i][0][j])
+
+for i in range(len(data_1_list)):
+    for j in range(128):
+        cv2.imwrite("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/ENS_CT_KERAS/data_128/"+f"{label_id_list[1][i]}"+"/"+f"{j}"+".png",data_1_list[i][0][j])
+
+data_0_64list = [[] for _ in range(len(data_0))]
+data_1_64list = [[] for _ in range(len(data_1))]
+for i in range(len(data_0)):
+    data = ndimage.zoom(data_0[i], (0.25, 0.25, 0.25))
+    data_0_64list[i].append(data)
+for i in range(len(data_1)):
+    data = ndimage.zoom(data_1[i], (0.25, 0.25, 0.25))
+    data_1_64list[i].append(data)
+for i in range(len(data_0_list)):
+    for j in range(64):
+        cv2.imwrite("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/ENS_CT_KERAS/data_64/"+f"{label_id_list[0][i]}"+"/"+f"{j}"+".png",data_0_64list[i][0][j])
+for i in range(len(data_1_list)):
+    for j in range(64):
+        cv2.imwrite("C:/Users/Yi-Hsin Hung/ChangGung/mypaper/meeting/mywork/ENS_CT_KERAS/data_64/"+f"{label_id_list[1][i]}"+"/"+f"{j}"+".png",data_1_64list[i][0][j])
+'''
+
+## 構建訓練和驗證數據集
+## 從類目錄中讀取掃描並分配標籤。
+
+# For the CT scans having presence of viral pneumonia
+# assign 1, for the normal ones assign 0.
+# label_0 = np.array([0 for _ in range(len(data_0))])
+# label_1 = np.array([1 for _ in range(len(data_1))])
+# label_2 = np.array([2 for _ in range(len(data_2))])
+# label_3 = np.array([3 for _ in range(len(data_3))])
+label=[[] for _ in range(len(data))]#迴歸
+for i in range(len(data)):
+    labeli=all_data_dic[regression_goal][i]
+    label[i].append(labeli)
+
+X=list(data)
+Y=list(label)
+Y_id=list(label_id_list[0])
+# Split data in the ratio 70-30 for training and validation.
+# X = list(data_0) + list(data_1)
+# Y= list(label_0) + list(label_1)
+# Y_id=list(label_id_list[0]) + list(label_id_list[1])
+# X = list(data_0) + list(data_1) + list(data_2) + list(data_3)
+# Y = list(label_0) + list(label_1) + list(label_2) + list(label_3)
+
+
+X_train, X_val, Y_train_raw, Y_val_raw = train_test_split(X, Y, test_size=0.25, random_state=seed,stratify=None)
+X_t,X_v,Y_id_t,Y_id_v=train_test_split(X, Y_id, test_size=0.25, random_state=seed,stratify=None)
+# Y_id_t = np.array(Y_id_t)
+# Y_id_v = np.array(Y_id_v)
+X_train = np.array(X_train)
+X_val = np.array(X_val)
+X_train =X_train/255
+X_val =X_val/255
+
+Y_train = np.array(Y_train_raw)
+# Y_train[Y_train<0.5]=-1
+# Y_train= tf.keras.utils.to_categorical(Y_train,num_classes=2)#多類交叉熵損失、SVM1
+
+Y_val = np.array(Y_val_raw)
+# Y_val[Y_val<0.5]=-1#用tanh時
+# Y_val= tf.keras.utils.to_categorical(Y_val,num_classes=2)#多類交叉熵損失、SVM1
+
+
+
+print(
+    "Number of samples in train and validation are %d and %d."
+    % (X_train.shape[0], X_val.shape[0])
+)
+
+
+
+print("Seed : "+str(seed))
+
+
+
+
+
+print("Batch Size : "+str(batch_size))
+generator_train=VoxelDataGenerator(flip_axis='random',
+                 rotate_axis='random',
+                 rotate_angle='random')
+generator_val=VoxelDataGenerator(flip_axis=1)
+train_aug=generator_train.build(data=X_train,label=Y_train,batch_size=batch_size)
+val_aug=generator_val.build(data=X_val,label=Y_val,batch_size=batch_size)
+
+
+
+
+
+# 定義一個 3D 卷積神經網絡
+# 為了使模型更容易理解，我們將其組織成塊。本示例中使用的 3D CNN 的架構基於這篇論文。
+# https://arxiv.org/abs/2007.13224
+# os.environ["TF_GPU_ALLOCATOR"]="cuda_malloc_async"
+
+def get_model(width, height, depth):
+    """Build a 3D convolutional neural network model."""
+
+    inputs = keras.Input((depth, width, height, 1))
+
+    x = layers.Conv3D(filters=96, kernel_size=3, activation="relu")(inputs)
+    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Conv3D(filters=128, kernel_size=3, activation="relu")(x)
+    x = layers.Conv3D(filters=256, kernel_size=3, activation="relu")(x)
+    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Conv3D(filters=324, kernel_size=3, activation="relu")(x)
+    x = layers.Conv3D(filters=324, kernel_size=3, activation="relu")(x)
+    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Conv3D(filters=512, kernel_size=3, activation="relu")(x)
+    x = layers.MaxPool3D(pool_size=2)(x)
+    x = layers.BatchNormalization()(x)
+
+    flatten_layer = layers.Flatten()(x)
+    x = layers.Dense(units=1000, activation="relu")(flatten_layer)
+    x = layers.Dense(units=1000, activation="relu")(x)
+    # x = layers.Dense(units=1000, activation="relu",kernel_initializer='he_uniform')(x)#sigmoid
+
+    # x = layers.experimental.RandomFourierFeatures(output_dim=4096,scale=2.,kernel_initializer='gaussian')(x)#SVM1
+    # outputs = layers.Dense(units=2)(x)
+    # outputs=layers.Dense(units=2,activation='softmax')(x)
+    outputs=layers.Dense(units=1,activation='linear')(x)#回歸
+
+
+    # outputs=layers.Dense(units=1,activation='sigmoid')(x)
+    # outputs=layers.Dense(units=1, kernel_regularizer=l2(0.0001),activation='linear')(x)#SVM2、二元
+    # outputs=layers.Dense(units=4, kernel_regularizer=l2(0.0001),activation='softmax')(x)#SVM2、多元
+    # outputs=layers.Dense(units=2, kernel_regularizer=l2(0.00001),activation='linear')(x)
+
+
+    # Define the model.
+    model = keras.Model(inputs, outputs)
+
+
+    return model
+
+
+#Build model.
+model = get_model(width=256, height=256, depth=65)
+model.summary()
+def r2_keras(y_true, y_pred):
+    SS_res =  keras.sum(keras.square( y_true - y_pred ))
+    SS_tot = keras.sum(keras.square( y_true - keras.mean(y_true) ) )
+    return ( 1 - SS_res/(SS_tot + keras.epsilon()) )
+#
+# 訓練模型
+# Compile model.
+# initial_learning_rate = 0.0001
+opt = tf.keras.optimizers.SGD(learning_rate=0.0001,momentum=0.9)
+adam=tf.keras.optimizers.Adam(learning_rate=0.0001)
+# model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])#多類交叉熵損失
+model.compile(loss='mean_squared_error', optimizer=adam)#回歸
+# metrics=['class CategoricalAccuracy']：計算預測與單熱標籤匹配的頻率。
+# model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])#二元交叉熵損失
+# model.compile(loss='hinge', optimizer=adam, metrics=['categorical_accuracy'])#SVM1
+# model.compile(loss='squared_hinge', optimizer=adam, metrics=['accuracy'])#SVM2、多元
+# model.compile(loss='hinge', optimizer=adam, metrics=['accuracy'])#SVM2、二元
+
+# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+# model.compile(loss='squared_hinge', optimizer='adadelta', metrics=['accuracy'])
+# model.compile(loss='hinge', optimizer=opt, metrics=['accuracy'])#tanh
+
+
+
+
+# Define callbacks.
+checkpoint_cb = keras.callbacks.ModelCheckpoint(
+    checkpoint,  monitor='val_loss', verbose=1, save_best_only=True,mode='min')
+# checkpoint_cb = keras.callbacks.ModelCheckpoint(
+    # checkpoint,  monitor='val_categorical_accuracy', verbose=1, save_best_only=True,mode='max')#SVM1
+early_stopping_cb = keras.callbacks.EarlyStopping(monitor="val_loss", patience=epochs)
+# early_stopping_cb = keras.callbacks.EarlyStopping(monitor="val_categorical_accuracy", patience=epochs)#SVM1
+
+# Train the model, doing validation at the end of each epoch
+
+#
+history=model.fit(
+    x=train_aug, steps_per_epoch=X_train.shape[0]//batch_size, epochs=epochs, callbacks=[checkpoint_cb,
+    early_stopping_cb],validation_data=val_aug,validation_steps=X_val.shape[0]//batch_size)
+
+model.save(model_name)
+
+# 對單次預測
+# Load best weights.
+model = tf.keras.models.load_model(model_name)
+model.load_weights(checkpoint)
+
+class_names = ["snot25_0", "snot25_1"]
+class_names = ["snot22_0", "snot22_1", "snot22_2", "snot22_3"]
+prediction = model.predict(X_val,batch_size=2)
+prediction = model.predict(np.expand_dims(X_val[0], axis=0))[0]
+results = [[i,r] for i,r in enumerate(prediction)]
+results.sort(key=lambda x: x[1], reverse=True)
+for r in results:
+    print("Class : "+class_names [r[0]]+"  Pprobability"+str(r[1]))
+
+#作圖
+pyplot.plot(history.history['accuracy'], label='train')
+
+pyplot.plot(history.history['val_accuracy'], label='test')
+
+pyplot.plot(history.history['loss'], label='train_loss')
+pyplot.plot(history.history['val_loss'], label='test_loss')
+
+
+pyplot.plot(history.history['loss'], label='train')
+pyplot.plot(history.history['val_loss'], label='test')
+pyplot.legend()
+pyplot.show()
+
+#作圖
+fig,ax=pyplot.subplots(2,1)
+ax[0][0].plot(history.history['accuracy'], label='train')
+ax[0][0].plot(history.history['val_accuracy'], label='test')
+ax[0][1].plot(history.history['loss'], label='train_loss')
+ax[0][1].plot(history.history['val_loss'], label='test_loss')
+pyplot.show()
+
+
+prediction_t = model.predict(X_train,batch_size=2)
+prediction_v = model.predict(X_val,batch_size=2)
+
+prediction_t_df=list(prediction_t)
+prediction_v_df=list(prediction_v)
+id_list=[]
+for i in range(len(Y_id_t)):
+    id_list.append(Y_id_t[i])
+for i in range(len(Y_id_v)):
+    id_list.append(Y_id_v[i])
+true_list=[]
+for i in range(len(Y_train_raw)):
+    true_list.append(Y_train_raw[i][0])
+for i in range(len(Y_val_raw)):
+    true_list.append(Y_val_raw[i][0])
+pre_list=[]
+for i in range(len(prediction_t_df)):
+    pre_list.append(prediction_t_df[i][0])
+for i in range(len(prediction_v_df)):
+    pre_list.append(prediction_v_df[i][0])
+    
+#儲存訓練與測試成員清單
+df = pd.DataFrame()
+df.insert(0,'ID',id_list)
+df.insert(1,'true',true_list)
+df.insert(2,'pre1',pre_list)
+df.to_excel(excel_name)
+df_t = pd.DataFrame(data=prediction_t)
+df_v = pd.DataFrame(data=prediction_v)
+df_t.to_excel("t.xlsx")
+df_v.to_excel("v.xlsx")
+df_id_t = pd.DataFrame(data=Y_id_t)
+df_id_v = pd.DataFrame(data=Y_id_v)
+df_id_t.to_excel("id_t.xlsx")
+df_id_v.to_excel("id_v.xlsx")
+
+# 混淆矩陣
+y_pred = prediction # 預測
+y_pred=tf.keras.utils.to_categorical(y_pred,num_classes=2)
+y_true = Y_val # Ground truth
+
+
+# # 顯示混淆矩陣：
+confusion_mtx = tf.math.confusion_matrix(y_true, y_pred,num_classes=2)
+pyplot.figure()
+sns.heatmap(confusion_mtx, xticklabels=class_names, yticklabels=class_names,
+            annot= True , fmt= 'g' )
+pyplot.xlabel('Prediction')
+pyplot.ylabel('Label')
+pyplot.show()
+score=model.evaluate(X_val,Y_val,batch_size=2)
